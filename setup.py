@@ -10,13 +10,9 @@ setup(
         "pydantic>=2.0",
         "pydantic-settings>=2.0",
     ],
-    package_data={
-        "grid_trading_bot": ["static/*.html"],
-    },
     entry_points={
         "console_scripts": [
             "grid-bot=grid_trading_bot.main:main",
-            "grid-scanner=grid_trading_bot.web_scanner:main",
         ],
     },
 )

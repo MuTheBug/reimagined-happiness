@@ -77,18 +77,7 @@ The scanner analyzes each symbol using:
 
 ### Web Scanner Dashboard
 
-```bash
-# Launch the scanner dashboard in your browser (scan-only, no trading)
-grid-scanner
-
-# Custom port
-grid-scanner --port 3000
-
-# Testnet mode
-grid-scanner --testnet
-```
-
-Opens an HTML dashboard at `http://localhost:8080` where you can scan markets and view detailed recommendations with visual grid overlays. No orders are placed.
+Open `scanner.html` in any browser — no server required. It connects directly to Binance's public API, runs the full scanner analysis in JavaScript, and displays ranked recommendations with grid visualizations.
 
 ### Manual Mode
 
@@ -125,9 +114,7 @@ grid_trading_bot/
   risk.py           - Stop-loss / take-profit evaluation
   bot.py            - Main bot loop
   main.py           - CLI entry point
-  web_scanner.py    - Web scanner dashboard server
-  static/
-    scanner.html    - Scanner dashboard frontend
+scanner.html          - Standalone web scanner dashboard (open in browser)
 tests/
   test_scanner.py
   test_grid.py

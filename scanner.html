@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Grid Trading Scanner</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --red: #f85149;
+  --yellow: #d29922;
+  --orange: #db6d28;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--bg); color: var(--text); line-height:1.5; min-height:100vh;
+}
+.container { max-width:1280px; margin:0 auto; padding:20px; }
+
+/* Header */
+header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 0; border-bottom:1px solid var(--border); margin-bottom:20px;
+  flex-wrap:wrap; gap:12px;
+}
+header h1 { font-size:20px; font-weight:600; }
+header h1 span { color:var(--accent); }
+.controls { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+label { font-size:13px; color:var(--muted); }
+select, input[type=number] {
+  background:var(--surface); border:1px solid var(--border); color:var(--text);
+  padding:5px 8px; border-radius:6px; font-size:13px; width:65px;
+}
+.btn {
+  background:var(--green); color:#fff; border:none; padding:7px 18px;
+  border-radius:6px; font-size:14px; font-weight:600; cursor:pointer;
+}
+.btn:hover { opacity:.9; }
+.btn:disabled { opacity:.4; cursor:not-allowed; }
+
+/* Progress */
+.progress { display:none; margin-bottom:20px; }
+.progress.show { display:block; }
+.progress-bar-track {
+  width:100%; height:8px; background:var(--surface); border-radius:4px;
+  border:1px solid var(--border); overflow:hidden;
+}
+.progress-bar-fill {
+  height:100%; background:var(--accent); border-radius:4px;
+  transition: width .3s;
+}
+.progress-text { font-size:13px; color:var(--muted); margin-top:6px; }
+
+/* Status */
+.status-bar {
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:14px 18px; margin-bottom:20px; display:none; align-items:center; gap:10px;
+}
+.status-bar.show { display:flex; }
+.status-bar.error { border-color:var(--red); }
+.status-bar.error .status-text { color:var(--red); }
+.spinner {
+  width:16px; height:16px; border:2px solid var(--border);
+  border-top-color:var(--accent); border-radius:50%;
+  animation:spin .8s linear infinite; flex-shrink:0;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+.status-text { font-size:13px; color:var(--muted); }
+
+/* Welcome */
+.welcome { text-align:center; padding:60px 20px; color:var(--muted); }
+.welcome h2 { font-size:20px; color:var(--text); margin-bottom:8px; }
+.welcome p { font-size:14px; margin-bottom:4px; }
+
+/* Summary cards */
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-bottom:20px; }
+.card {
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:14px; text-align:center;
+}
+.card .v { font-size:26px; font-weight:700; color:var(--accent); }
+.card .l { font-size:11px; color:var(--muted); text-transform:uppercase; margin-top:2px; }
+
+/* Table */
+.results { display:none; }
+.results.show { display:block; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+thead th {
+  text-align:left; padding:9px 10px; background:var(--surface);
+  border-bottom:2px solid var(--border); color:var(--muted); font-weight:600;
+  text-transform:uppercase; font-size:11px; letter-spacing:.4px;
+  cursor:pointer; user-select:none; white-space:nowrap;
+}
+thead th:hover { color:var(--accent); }
+thead th.sorted-asc::after { content:" \u25B2"; font-size:9px; }
+thead th.sorted-desc::after { content:" \u25BC"; font-size:9px; }
+tbody tr { border-bottom:1px solid var(--border); cursor:pointer; transition:background .1s; }
+tbody tr:hover { background:rgba(88,166,255,.04); }
+tbody tr.expanded { background:rgba(88,166,255,.06); }
+td { padding:9px 10px; white-space:nowrap; }
+.rank { font-weight:700; color:var(--muted); width:36px; }
+.r1 { color:var(--yellow); }
+.r2 { color:var(--muted); }
+.r3 { color:var(--orange); }
+.sym { font-weight:600; }
+.score-bar { display:flex; align-items:center; gap:6px; }
+.sb-track { width:55px; height:5px; background:var(--border); border-radius:3px; overflow:hidden; }
+.sb-fill { height:100%; border-radius:3px; }
+.sb-val { font-weight:700; min-width:32px; }
+.mono { font-family:'SF Mono','Cascadia Code',Consolas,monospace; font-size:12px; }
+.g { color:var(--green); }
+@media(max-width:800px) { .hm { display:none; } }
+
+/* Detail panel */
+.detail-tr { display:none; }
+.detail-tr.show { display:table-row; }
+.detail-tr td { padding:0; border:none; }
+.detail {
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  margin:4px 10px 10px; padding:18px; display:grid;
+  grid-template-columns:1fr 1fr; gap:18px;
+}
+.detail h3 {
+  font-size:12px; font-weight:600; color:var(--accent); text-transform:uppercase;
+  letter-spacing:.4px; margin-bottom:10px; padding-bottom:5px; border-bottom:1px solid var(--border);
+}
+.di { display:flex; justify-content:space-between; padding:3px 0; font-size:13px; }
+.di .k { color:var(--muted); }
+.di .val { font-weight:600; font-family:'SF Mono',monospace; font-size:12px; }
+
+/* Grid viz */
+.grid-viz {
+  grid-column:1/-1; background:var(--bg); border:1px solid var(--border);
+  border-radius:6px; padding:14px; height:74px; display:flex; align-items:center;
+}
+.gv-track { width:100%; height:4px; background:var(--border); border-radius:2px; position:relative; }
+.gv-range { position:absolute; height:100%; background:var(--accent); border-radius:2px; opacity:.3; }
+.gv-tick { position:absolute; width:1px; height:14px; top:-5px; background:var(--accent); opacity:.4; }
+.gv-price { position:absolute; width:2px; height:18px; top:-7px; background:var(--green); }
+.gv-lbl { position:absolute; font-size:10px; color:var(--muted); top:14px; transform:translateX(-50%); white-space:nowrap; }
+.gv-cur { position:absolute; width:8px; height:8px; border-radius:50%; background:var(--yellow); top:-2px; transform:translateX(-50%); }
+.gv-clbl { position:absolute; font-size:10px; color:var(--yellow); top:-20px; transform:translateX(-50%); white-space:nowrap; font-weight:600; }
+
+/* Interpretation */
+.interp {
+  grid-column:1/-1; background:rgba(88,166,255,.05); border:1px solid rgba(88,166,255,.15);
+  border-radius:6px; padding:12px 14px;
+}
+.interp h3 { border-bottom:none; margin-bottom:6px; }
+.interp ul { list-style:none; padding:0; }
+.interp li { padding:2px 0; font-size:13px; color:var(--muted); }
+.interp li::before { content:"+"; color:var(--green); font-weight:700; margin-right:8px; }
+.interp li.w::before { content:"!"; color:var(--yellow); }
+
+/* CLI section */
+.cli-section {
+  grid-column:1/-1; background:var(--bg); border:1px solid var(--border);
+  border-radius:6px; padding:12px 14px;
+}
+.cli-section h3 { border-bottom:none; margin-bottom:6px; }
+.cli-cmd {
+  font-family:'SF Mono',monospace; font-size:12px; background:var(--surface);
+  border:1px solid var(--border); border-radius:4px; padding:8px 10px;
+  color:var(--green); word-break:break-all; cursor:pointer; position:relative;
+}
+.cli-cmd:hover::after {
+  content:"click to copy"; position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  font-size:10px; color:var(--muted);
+}
+
+@media(max-width:768px) { .detail { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1><span>Grid</span> Trading Scanner</h1>
+    <div class="controls">
+      <label>Top <input type="number" id="topN" value="10" min="1" max="50"></label>
+      <label>Min Vol
+        <select id="minVol">
+          <option value="1000000">$1M</option>
+          <option value="5000000" selected>$5M</option>
+          <option value="10000000">$10M</option>
+          <option value="50000000">$50M</option>
+        </select>
+      </label>
+      <label>Scan
+        <select id="scanCount">
+          <option value="40">40</option>
+          <option value="80" selected>80</option>
+          <option value="120">120</option>
+        </select>
+        pairs
+      </label>
+      <button class="btn" id="scanBtn" onclick="startScan()">Scan Markets</button>
+    </div>
+  </header>
+
+  <div class="progress" id="progress">
+    <div class="progress-bar-track"><div class="progress-bar-fill" id="progFill" style="width:0%"></div></div>
+    <div class="progress-text" id="progText">Starting...</div>
+  </div>
+
+  <div class="status-bar" id="statusBar">
+    <div class="spinner" id="spinner"></div>
+    <div class="status-text" id="statusText"></div>
+  </div>
+
+  <div class="welcome" id="welcome">
+    <h2>Binance Grid Trading Scanner</h2>
+    <p>Scans top USDT pairs and ranks them by grid trading profitability.</p>
+    <p>Analyzes Hurst exponent, ADX, volatility, oscillation, and backtests grid profit.</p>
+    <p style="margin-top:14px">Uses Binance public API directly &mdash; no API keys needed, no server, no trading.</p>
+    <p style="margin-top:14px; color:var(--text)">Click <strong>Scan Markets</strong> to begin.</p>
+  </div>
+
+  <div class="results" id="results">
+    <div class="cards" id="cards"></div>
+    <table>
+      <thead>
+        <tr id="thead">
+          <th data-key="rank">#</th>
+          <th data-key="symbol">Symbol</th>
+          <th data-key="overall_score">Score</th>
+          <th data-key="current_price">Price</th>
+          <th data-key="hurst">Hurst</th>
+          <th data-key="adx">ADX</th>
+          <th data-key="volatility" class="hm">Vol%</th>
+          <th data-key="oscillation" class="hm">Osc</th>
+          <th data-key="bt_profit">BT Profit%</th>
+          <th data-key="daily_profit">Daily%</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   BINANCE PUBLIC API
+   ========================================================================= */
+const API = 'https://api.binance.com';
+
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status} for ${url}`);
+  return r.json();
+}
+
+async function getTickers() {
+  return fetchJSON(`${API}/api/v3/ticker/24hr`);
+}
+
+async function getKlines(symbol, interval='1h', limit=168) {
+  return fetchJSON(`${API}/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+}
+
+/* =========================================================================
+   MATH HELPERS
+   ========================================================================= */
+function mean(a) { return a.reduce((s,x) => s+x, 0) / a.length; }
+function std(a) { const m=mean(a); return Math.sqrt(a.reduce((s,x) => s+(x-m)**2, 0)/a.length); }
+function logReturns(c) { const r=[]; for(let i=1;i<c.length;i++) r.push(Math.log(c[i]/c[i-1])); return r; }
+
+/* =========================================================================
+   TECHNICAL INDICATORS (ported from scanner.py)
+   ========================================================================= */
+
+function hurstExponent(closes) {
+  const returns = logReturns(closes);
+  const n = returns.length;
+  if (n < 20) return 0.5;
+
+  const minChunk = 8;
+  const sizes = [], rsValues = [];
+  let cs = minChunk;
+
+  while (cs <= Math.floor(n / 2)) {
+    const numChunks = Math.floor(n / cs);
+    const rsList = [];
+    for (let i = 0; i < numChunks; i++) {
+      const chunk = returns.slice(i * cs, (i + 1) * cs);
+      const m = mean(chunk);
+      const devs = [];
+      let cumSum = 0;
+      for (let j = 0; j < chunk.length; j++) {
+        cumSum += chunk[j];
+        devs.push(cumSum - (j + 1) * m);
+      }
+      const R = Math.max(...devs) - Math.min(...devs);
+      const S = std(chunk) || 1e-10;
+      rsList.push(R / S);
+    }
+    sizes.push(cs);
+    rsValues.push(mean(rsList));
+    cs *= 2;
+  }
+
+  if (sizes.length < 2) return 0.5;
+
+  const logS = sizes.map(Math.log);
+  const logR = rsValues.map(v => Math.log(Math.max(v, 1e-10)));
+  const mx = mean(logS), my = mean(logR);
+  let num = 0, den = 0;
+  for (let i = 0; i < logS.length; i++) {
+    num += (logS[i] - mx) * (logR[i] - my);
+    den += (logS[i] - mx) ** 2;
+  }
+  if (den === 0) return 0.5;
+  return Math.max(0, Math.min(1, num / den));
+}
+
+function adx(highs, lows, closes, period = 14) {
+  const n = closes.length;
+  if (n < period + 1) return 50;
+
+  const plusDM = [], minusDM = [], trList = [];
+  for (let i = 1; i < n; i++) {
+    const hd = highs[i] - highs[i-1];
+    const ld = lows[i-1] - lows[i];
+    plusDM.push(hd > ld && hd > 0 ? hd : 0);
+    minusDM.push(ld > hd && ld > 0 ? ld : 0);
+    trList.push(Math.max(highs[i]-lows[i], Math.abs(highs[i]-closes[i-1]), Math.abs(lows[i]-closes[i-1])));
+  }
+
+  function wilderSmooth(data, p) {
+    const out = [data.slice(0, p).reduce((a,b) => a+b, 0)];
+    for (let i = p; i < data.length; i++) out.push(out[out.length-1] - out[out.length-1]/p + data[i]);
+    return out;
+  }
+
+  const atr = wilderSmooth(trList, period);
+  const sPDM = wilderSmooth(plusDM, period);
+  const sMDM = wilderSmooth(minusDM, period);
+  const len = Math.min(atr.length, sPDM.length, sMDM.length);
+  const dxVals = [];
+  for (let i = 0; i < len; i++) {
+    if (atr[i] === 0) continue;
+    const pdi = 100 * sPDM[i] / atr[i];
+    const mdi = 100 * sMDM[i] / atr[i];
+    const d = pdi + mdi;
+    if (d === 0) continue;
+    dxVals.push(100 * Math.abs(pdi - mdi) / d);
+  }
+  if (!dxVals.length) return 50;
+  const adxS = wilderSmooth(dxVals, period);
+  return adxS.length ? adxS[adxS.length-1] : 50;
+}
+
+function bollingerOscillation(closes, period = 20) {
+  const n = closes.length;
+  if (n < period) return 0;
+  let reversals = 0, prevSide = 0;
+  for (let i = period; i < n; i++) {
+    const ma = mean(closes.slice(i - period, i));
+    const side = closes[i] > ma ? 1 : -1;
+    if (prevSide !== 0 && side !== prevSide) reversals++;
+    prevSide = side;
+  }
+  const maxP = n - period;
+  return maxP > 0 ? reversals / maxP : 0;
+}
+
+function rangeConsistency(closes, pctBand = 0.02) {
+  const sorted = [...closes].sort((a,b) => a-b);
+  const n = sorted.length;
+  let bestCount = 0, bestLow = sorted[0], bestHigh = sorted[n-1];
+  for (let i = 0; i < n; i++) {
+    const lo = sorted[i];
+    const hi = lo * (1 + pctBand * 10);
+    let count = 0;
+    for (let j = i; j < n; j++) {
+      if (sorted[j] <= hi) count++; else break;
+    }
+    if (count > bestCount) { bestCount = count; bestLow = lo; bestHigh = hi; }
+  }
+  return bestCount / n;
+}
+
+function simulateGridProfit(closes, lower, upper, numLevels = 10) {
+  if (upper <= lower || numLevels < 2) return 0;
+  const step = (upper - lower) / (numLevels - 1);
+  const perLvl = 1 / numLevels;
+
+  function p2l(p) {
+    if (p <= lower) return 0;
+    if (p >= upper) return numLevels - 1;
+    return Math.floor((p - lower) / step);
+  }
+
+  let prev = p2l(closes[0]), total = 0;
+  for (let i = 1; i < closes.length; i++) {
+    const c = closes[i];
+    if (c < lower || c > upper) continue;
+    const cur = p2l(c);
+    const crossed = Math.abs(cur - prev);
+    if (crossed > 0) total += (step / c) * perLvl * crossed;
+    prev = cur;
+  }
+  return total * 100;
+}
+
+function autoGridLevels(closes, highs, lows, price) {
+  const sL = [...lows].sort((a,b) => a-b);
+  const sH = [...highs].sort((a,b) => a-b);
+  const n = sL.length;
+  let lo = sL[Math.floor(n/4)];
+  let hi = sH[Math.floor(3*n/4)];
+  if (price < lo) lo = price * 0.99;
+  if (price > hi) hi = price * 1.01;
+  lo *= 0.995;
+  hi *= 1.005;
+  const pct = (hi - lo) / price;
+  let levels = pct < 0.03 ? 8 : pct < 0.06 ? 12 : pct < 0.10 ? 15 : 20;
+  return { lower: lo, upper: hi, levels };
+}
+
+function scoreSymbol(a) {
+  const hurstScore = Math.max(0, (0.5 - a.hurst) * 200);
+  const adxScore = Math.max(0, (25 - a.adx) * 4);
+  const oscScore = a.oscillation * 100;
+  const rangeScore = a.consistency * 100;
+
+  let volScore;
+  if (a.volatility < 0.3) volScore = a.volatility / 0.3 * 30;
+  else if (a.volatility <= 4.0) volScore = 30 + (a.volatility - 0.3) / 3.7 * 70;
+  else volScore = Math.max(0, 100 - (a.volatility - 4.0) * 15);
+
+  const btScore = Math.min(100, a.bt_profit * 10);
+  const volBonus = a.avg_vol > 100000 ? Math.min(10, Math.log10(Math.max(a.avg_vol, 1)) - 5) : 0;
+
+  return +(
+    hurstScore * 0.25 + adxScore * 0.20 + oscScore * 0.15 +
+    btScore * 0.25 + rangeScore * 0.05 + volScore * 0.05 + volBonus * 0.05
+  ).toFixed(2);
+}
+
+/* =========================================================================
+   SCANNER
+   ========================================================================= */
+
+let scanData = [];
+
+async function startScan() {
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true; btn.textContent = 'Scanning...';
+  document.getElementById('welcome').style.display = 'none';
+  document.getElementById('results').classList.remove('show');
+
+  const topN = +document.getElementById('topN').value || 10;
+  const minVolUSD = +document.getElementById('minVol').value;
+  const scanCount = +document.getElementById('scanCount').value;
+
+  const prog = document.getElementById('progress');
+  const progFill = document.getElementById('progFill');
+  const progText = document.getElementById('progText');
+  prog.classList.add('show');
+  progFill.style.width = '0%';
+  progText.textContent = 'Fetching 24h ticker data...';
+
+  try {
+    const tickers = await getTickers();
+
+    // Filter USDT pairs
+    const usdt = tickers
+      .filter(t =>
+        t.symbol.endsWith('USDT') &&
+        !t.symbol.endsWith('DOWNUSDT') &&
+        !t.symbol.endsWith('UPUSDT') &&
+        !t.symbol.startsWith('TUSD') &&
+        !t.symbol.startsWith('BUSD') &&
+        !t.symbol.startsWith('USDC') &&
+        parseFloat(t.quoteVolume) >= minVolUSD
+      )
+      .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
+      .slice(0, scanCount);
+
+    progText.textContent = `Found ${usdt.length} liquid pairs. Analyzing...`;
+
+    const analyses = [];
+    const batchSize = 5; // concurrent requests to avoid rate limits
+
+    for (let i = 0; i < usdt.length; i += batchSize) {
+      const batch = usdt.slice(i, i + batchSize);
+      const promises = batch.map(async (t) => {
+        const symbol = t.symbol;
+        const price = parseFloat(t.lastPrice);
+        try {
+          const klines = await getKlines(symbol);
+          if (klines.length < 50) return null;
+
+          const closes = klines.map(k => +k[4]);
+          const highs = klines.map(k => +k[2]);
+          const lows = klines.map(k => +k[3]);
+          const vols = klines.map(k => +k[7]);
+
+          const returns = logReturns(closes);
+          const h = hurstExponent(closes);
+          const a = adx(highs, lows, closes);
+          const vol = std(returns) * 100;
+          const osc = bollingerOscillation(closes);
+          const cons = rangeConsistency(closes);
+          const avgVol = mean(vols);
+          const grid = autoGridLevels(closes, highs, lows, price);
+          const bt = simulateGridProfit(closes, grid.lower, grid.upper, grid.levels);
+          const daily = (bt / closes.length) * 24;
+
+          const result = {
+            symbol, current_price: price,
+            hurst: +h.toFixed(4), adx: +a.toFixed(2),
+            volatility: +vol.toFixed(4), oscillation: +osc.toFixed(4),
+            consistency: +cons.toFixed(4), avg_vol: +avgVol.toFixed(2),
+            bt_profit: +bt.toFixed(4), daily_profit: +daily.toFixed(4),
+            rec_lower: +grid.lower.toFixed(8), rec_upper: +grid.upper.toFixed(8),
+            rec_levels: grid.levels,
+            overall_score: 0,
+          };
+          result.overall_score = scoreSymbol(result);
+          return result;
+        } catch { return null; }
+      });
+
+      const results = await Promise.all(promises);
+      results.forEach(r => { if (r) analyses.push(r); });
+
+      const done = Math.min(i + batchSize, usdt.length);
+      const pct = (done / usdt.length * 100).toFixed(0);
+      progFill.style.width = pct + '%';
+      progText.textContent = `Analyzed ${done}/${usdt.length} symbols... (${analyses.length} valid)`;
+
+      // Small delay between batches
+      if (i + batchSize < usdt.length) await sleep(300);
+    }
+
+    analyses.sort((a, b) => b.overall_score - a.overall_score);
+    scanData = analyses.slice(0, topN);
+    prog.classList.remove('show');
+    renderResults();
+
+  } catch (err) {
+    prog.classList.remove('show');
+    showError('Scan failed: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Scan Markets';
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/* =========================================================================
+   RENDERING
+   ========================================================================= */
+
+let sortKey = 'overall_score', sortDir = -1;
+
+function scoreColor(s) { return s >= 60 ? 'var(--green)' : s >= 40 ? 'var(--yellow)' : 'var(--red)'; }
+
+function fmtPrice(p) {
+  if (p >= 1000) return p.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+  if (p >= 1) return p.toFixed(4);
+  if (p >= 0.001) return p.toFixed(6);
+  return p.toFixed(8);
+}
+
+function showError(msg) {
+  const bar = document.getElementById('statusBar');
+  bar.classList.add('show','error');
+  document.getElementById('spinner').style.display = 'none';
+  document.getElementById('statusText').textContent = msg;
+}
+
+function renderResults() {
+  const sec = document.getElementById('results');
+  sec.classList.add('show');
+
+  const data = scanData;
+  if (!data.length) return;
+
+  // Sort
+  const sorted = [...data].sort((a,b) => {
+    const av = a[sortKey], bv = b[sortKey];
+    return typeof av === 'string' ? sortDir * av.localeCompare(bv) : sortDir * (av - bv);
+  });
+
+  // Summary
+  const best = sorted[0];
+  const bestDaily = Math.max(...data.map(r => r.daily_profit));
+  document.getElementById('cards').innerHTML = `
+    <div class="card"><div class="v">${data.length}</div><div class="l">Analyzed</div></div>
+    <div class="card"><div class="v" style="color:var(--green)">${best.symbol}</div><div class="l">Top Pick</div></div>
+    <div class="card"><div class="v">${best.overall_score}</div><div class="l">Best Score</div></div>
+    <div class="card"><div class="v g">${bestDaily.toFixed(3)}%</div><div class="l">Best Est. Daily</div></div>
+  `;
+
+  // Table header sort indicators
+  document.querySelectorAll('#thead th').forEach(th => {
+    th.classList.remove('sorted-asc','sorted-desc');
+    if (th.dataset.key === sortKey) th.classList.add(sortDir > 0 ? 'sorted-asc' : 'sorted-desc');
+  });
+
+  // Rows
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+
+  sorted.forEach((r, i) => {
+    const rank = i + 1;
+    const c = scoreColor(r.overall_score);
+    const rc = rank <= 3 ? ' r'+rank : '';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="rank${rc}">${rank}</td>
+      <td class="sym">${r.symbol}</td>
+      <td><div class="score-bar"><span class="sb-val" style="color:${c}">${r.overall_score}</span>
+        <div class="sb-track"><div class="sb-fill" style="width:${Math.min(100,r.overall_score)}%;background:${c}"></div></div></div></td>
+      <td class="mono">${fmtPrice(r.current_price)}</td>
+      <td>${r.hurst.toFixed(3)}</td>
+      <td>${r.adx.toFixed(1)}</td>
+      <td class="hm">${r.volatility.toFixed(2)}%</td>
+      <td class="hm">${r.oscillation.toFixed(2)}</td>
+      <td class="mono g">${r.bt_profit.toFixed(2)}%</td>
+      <td class="mono g">${r.daily_profit.toFixed(3)}%</td>
+    `;
+    tr.onclick = () => toggleDetail(rank);
+    tbody.appendChild(tr);
+
+    const dtr = document.createElement('tr');
+    dtr.className = 'detail-tr';
+    dtr.id = 'det-' + rank;
+    dtr.innerHTML = '<td colspan="10">' + detailPanel(r) + '</td>';
+    tbody.appendChild(dtr);
+  });
+}
+
+function toggleDetail(rank) {
+  const row = document.getElementById('det-' + rank);
+  row.classList.toggle('show');
+  row.previousElementSibling.classList.toggle('expanded');
+}
+
+function detailPanel(r) {
+  const interps = [];
+  if (r.hurst < 0.45) interps.push('Strong mean-reversion &mdash; price tends to bounce back');
+  else if (r.hurst >= 0.55) interps.push({w:1, t:'Trending behavior &mdash; grid may underperform'});
+  if (r.adx < 20) interps.push('Low ADX confirms ranging market &mdash; ideal for grid');
+  else if (r.adx >= 25) interps.push({w:1, t:'High ADX indicates strong trend &mdash; higher risk'});
+  if (r.oscillation > 0.3) interps.push('High oscillation &mdash; frequent mean-reversion crossings');
+  if (r.bt_profit > 1) interps.push('Backtest shows strong historical grid profitability');
+  if (r.consistency > 0.5) interps.push('Good range consistency &mdash; price channels well');
+  if (r.avg_vol > 1000000) interps.push('Strong liquidity &mdash; orders fill reliably');
+  if (!interps.length) interps.push({w:1, t:'Mixed signals &mdash; proceed with caution'});
+
+  const ih = interps.map(x => typeof x === 'string' ? `<li>${x}</li>` : `<li class="w">${x.t}</li>`).join('');
+
+  const lo = r.rec_lower, hi = r.rec_upper, p = r.current_price;
+  const vizMin = lo * 0.995, vizMax = hi * 1.005, rng = vizMax - vizMin;
+  const lPct = ((lo - vizMin)/rng*100).toFixed(1);
+  const hPct = ((hi - vizMin)/rng*100).toFixed(1);
+  const wPct = (hPct - lPct).toFixed(1);
+  const pPct = ((p - vizMin)/rng*100).toFixed(1);
+
+  // Grid level ticks
+  const step = (hi - lo) / (r.rec_levels - 1);
+  let ticks = '';
+  for (let i = 0; i < r.rec_levels; i++) {
+    const tp = ((lo + i * step - vizMin) / rng * 100).toFixed(1);
+    ticks += `<div class="gv-tick" style="left:${tp}%"></div>`;
+  }
+
+  const rangeW = ((hi - lo) / p * 100).toFixed(1);
+  const profitPerLvl = ((hi - lo) / (r.rec_levels - 1) / p * 100).toFixed(3);
+
+  // CLI command
+  const cli = `grid-bot --symbol ${r.symbol} --lower ${fmtPrice(lo)} --upper ${fmtPrice(hi)} --levels ${r.rec_levels}`;
+
+  return `<div class="detail">
+    <div>
+      <h3>Indicators</h3>
+      <div class="di"><span class="k">Hurst Exponent</span><span class="val">${r.hurst.toFixed(4)} ${r.hurst<0.45?'(mean-reverting)':r.hurst<0.55?'(neutral)':'(trending)'}</span></div>
+      <div class="di"><span class="k">ADX</span><span class="val">${r.adx.toFixed(1)} ${r.adx<20?'(ranging)':r.adx<25?'(weak trend)':'(trending)'}</span></div>
+      <div class="di"><span class="k">Volatility</span><span class="val">${r.volatility.toFixed(2)}%</span></div>
+      <div class="di"><span class="k">BB Oscillation</span><span class="val">${r.oscillation.toFixed(4)}</span></div>
+      <div class="di"><span class="k">Range Consistency</span><span class="val">${(r.consistency*100).toFixed(1)}%</span></div>
+      <div class="di"><span class="k">Avg Hourly Volume</span><span class="val">$${r.avg_vol.toLocaleString(undefined,{maximumFractionDigits:0})}</span></div>
+    </div>
+    <div>
+      <h3>Recommended Grid</h3>
+      <div class="di"><span class="k">Lower Price</span><span class="val">${fmtPrice(lo)}</span></div>
+      <div class="di"><span class="k">Upper Price</span><span class="val">${fmtPrice(hi)}</span></div>
+      <div class="di"><span class="k">Grid Levels</span><span class="val">${r.rec_levels}</span></div>
+      <div class="di"><span class="k">Range Width</span><span class="val">${rangeW}%</span></div>
+      <div class="di"><span class="k">Profit per Level</span><span class="val">~${profitPerLvl}%</span></div>
+      <div class="di"><span class="k">Grid Type</span><span class="val">Arithmetic</span></div>
+    </div>
+    <div class="grid-viz">
+      <div class="gv-track">
+        <div class="gv-range" style="left:${lPct}%;width:${wPct}%"></div>
+        ${ticks}
+        <div class="gv-price" style="left:${lPct}%"></div>
+        <div class="gv-lbl" style="left:${lPct}%">${fmtPrice(lo)}</div>
+        <div class="gv-price" style="left:${hPct}%"></div>
+        <div class="gv-lbl" style="left:${hPct}%">${fmtPrice(hi)}</div>
+        <div class="gv-cur" style="left:${pPct}%"></div>
+        <div class="gv-clbl" style="left:${pPct}%">Current: ${fmtPrice(p)}</div>
+      </div>
+    </div>
+    <div>
+      <h3>Profitability</h3>
+      <div class="di"><span class="k">7-Day Backtest</span><span class="val g">${r.bt_profit.toFixed(2)}%</span></div>
+      <div class="di"><span class="k">Est. Daily Profit</span><span class="val g">${r.daily_profit.toFixed(3)}%</span></div>
+      <div class="di"><span class="k">Est. Monthly Profit</span><span class="val g">${(r.daily_profit*30).toFixed(2)}%</span></div>
+      <div class="di"><span class="k">Overall Score</span><span class="val" style="color:${scoreColor(r.overall_score)}">${r.overall_score} / 100</span></div>
+    </div>
+    <div class="interp"><h3>Analysis</h3><ul>${ih}</ul></div>
+    <div class="cli-section">
+      <h3>Run with CLI</h3>
+      <div class="cli-cmd" onclick="navigator.clipboard.writeText(this.textContent.trim())">${cli}</div>
+    </div>
+  </div>`;
+}
+
+/* Column sorting */
+document.getElementById('thead').addEventListener('click', e => {
+  const th = e.target.closest('th');
+  if (!th || !th.dataset.key) return;
+  const key = th.dataset.key;
+  if (key === sortKey) sortDir *= -1;
+  else { sortKey = key; sortDir = key === 'symbol' ? 1 : -1; }
+  renderResults();
+});
+</script>
+</body>
+</html>
