@@ -20,7 +20,15 @@ Grid trading divides a price range into evenly-spaced levels. Buy orders are pla
 ## Installation
 
 ```bash
-pip install -e .
+# Recommended: use a virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Or install as a package (gives you the grid-bot command)
+pip install .
 ```
 
 ## Configuration
