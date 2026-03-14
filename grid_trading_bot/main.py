@@ -9,6 +9,7 @@ import sys
 
 from .bot import GridBot
 from .config import Config
+from .scanner import print_scanner_results, scan_symbols
 
 
 def setup_logging(level: str) -> None:
@@ -21,6 +22,12 @@ def setup_logging(level: str) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Binance Grid Trading Bot")
+    parser.add_argument("--scan", action="store_true",
+                        help="Scan all USDT pairs and find the best symbol for grid trading")
+    parser.add_argument("--scan-top", type=int, default=10,
+                        help="Number of top symbols to display in scan results (default: 10)")
+    parser.add_argument("--auto", action="store_true",
+                        help="Auto-select the best symbol from scan and start the bot")
     parser.add_argument("--symbol", help="Trading pair (e.g. BTCUSDT)")
     parser.add_argument("--upper", type=float, help="Upper grid price")
     parser.add_argument("--lower", type=float, help="Lower grid price")
@@ -62,6 +69,44 @@ def main(argv: list[str] | None = None) -> None:
 
     config = Config(**overrides)  # type: ignore[arg-type]
     setup_logging(config.log_level)
+
+    # ---- SCAN MODE ----
+    if args.scan or args.auto:
+        analyses = scan_symbols(
+            api_key=config.api_key,
+            api_secret=config.api_secret,
+            testnet=config.testnet,
+            top_n=args.scan_top,
+        )
+        print_scanner_results(analyses)
+
+        if not args.auto or not analyses:
+            return
+
+        # Auto mode: use the best symbol and its recommended grid settings
+        best = analyses[0]
+        config = Config(
+            api_key=config.api_key,
+            api_secret=config.api_secret,
+            symbol=best.symbol,
+            upper_price=best.recommended_upper,
+            lower_price=best.recommended_lower,
+            grid_levels=best.recommended_levels,
+            total_investment=config.total_investment,
+            dry_run=config.dry_run,
+            testnet=config.testnet,
+            log_level=config.log_level,
+        )
+
+        print(f"\n  Auto-starting grid bot on {best.symbol}...")
+        print(f"  Grid: {best.recommended_lower} — {best.recommended_upper} ({best.recommended_levels} levels)")
+        print(f"  Investment: {config.total_investment} USDT")
+        print(f"  Mode: {'DRY RUN' if config.dry_run else 'LIVE'}\n")
+
+    # ---- Validate grid bounds before starting ----
+    if config.lower_price == 0.0 or config.upper_price == 0.0:
+        print("Error: Grid bounds not set. Use --scan to auto-detect, or provide --upper and --lower.")
+        sys.exit(1)
 
     bot = GridBot(config)
 

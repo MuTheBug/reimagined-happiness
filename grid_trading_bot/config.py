@@ -25,14 +25,14 @@ class Config(BaseSettings):
     # Trading pair
     symbol: str = Field(default="BTCUSDT", description="Trading pair symbol")
 
-    # Grid parameters
-    upper_price: float = Field(description="Upper bound of the grid")
-    lower_price: float = Field(description="Lower bound of the grid")
+    # Grid parameters (optional when using --scan)
+    upper_price: float = Field(default=0.0, description="Upper bound of the grid")
+    lower_price: float = Field(default=0.0, description="Lower bound of the grid")
     grid_levels: int = Field(default=10, ge=2, le=200, description="Number of grid levels")
     grid_type: GridType = Field(default=GridType.ARITHMETIC, description="Grid spacing type")
 
     # Position sizing
-    total_investment: float = Field(description="Total investment amount in quote currency")
+    total_investment: float = Field(default=1000.0, description="Total investment amount in quote currency")
 
     # Risk management
     stop_loss_price: float | None = Field(default=None, description="Stop loss price")
@@ -47,6 +47,9 @@ class Config(BaseSettings):
     @classmethod
     def upper_must_exceed_lower(cls, v: float, info) -> float:
         lower = info.data.get("lower_price")
+        # Skip validation when both are 0 (scan mode will set them)
+        if v == 0.0 and (lower is None or lower == 0.0):
+            return v
         if lower is not None and v <= lower:
             raise ValueError("upper_price must be greater than lower_price")
         return v

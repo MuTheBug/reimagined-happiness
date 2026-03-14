@@ -8,6 +8,9 @@ Grid trading divides a price range into evenly-spaced levels. Buy orders are pla
 
 ## Features
 
+- **Smart symbol scanner** — auto-analyzes all USDT pairs to find the most profitable ranging symbol
+- **Ranging behavior forecasting** — uses Hurst exponent, ADX, Bollinger Band oscillation, and grid backtesting to predict which symbols will be profitable for grid trading
+- **Auto grid configuration** — automatically computes optimal upper/lower bounds and grid levels from price action (support/resistance via IQR analysis)
 - **Arithmetic & geometric grids** — choose uniform price spacing or uniform percentage spacing
 - **Risk management** — configurable stop-loss and take-profit thresholds
 - **Dry-run mode** — simulate trading without placing real orders (enabled by default)
@@ -43,6 +46,29 @@ Key settings:
 
 ## Usage
 
+### Smart Scanner (recommended)
+
+```bash
+# Scan all USDT pairs and find the best symbol for grid trading
+grid-bot --scan
+
+# Auto-select the best symbol and start the bot immediately
+grid-bot --auto
+
+# Show top 20 candidates
+grid-bot --scan --scan-top 20
+```
+
+The scanner analyzes each symbol using:
+- **Hurst exponent** — detects mean-reverting behavior (H < 0.5 = price tends to revert to mean)
+- **ADX (Average Directional Index)** — confirms ranging market (ADX < 25 = no strong trend)
+- **Bollinger Band oscillation** — measures how frequently price bounces within bands
+- **Grid backtest** — simulates grid trading on 7 days of hourly data to estimate real profit
+- **Range consistency** — checks what % of candles stay within the detected range
+- **Volume filter** — ensures sufficient liquidity (>$5M daily volume)
+
+### Manual Mode
+
 ```bash
 # Using environment variables / .env file
 grid-bot
@@ -68,6 +94,7 @@ pytest
 
 ```
 grid_trading_bot/
+  scanner.py        - Symbol scanner with Hurst, ADX, backtest analysis
   config.py         - Configuration via pydantic-settings
   grid.py           - Grid level computation (arithmetic/geometric)
   exchange.py       - Binance API client wrapper
@@ -76,6 +103,7 @@ grid_trading_bot/
   bot.py            - Main bot loop
   main.py           - CLI entry point
 tests/
+  test_scanner.py
   test_grid.py
   test_risk.py
   test_order_manager.py
