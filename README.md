@@ -75,6 +75,21 @@ The scanner analyzes each symbol using:
 - **Range consistency** — checks what % of candles stay within the detected range
 - **Volume filter** — ensures sufficient liquidity (>$5M daily volume)
 
+### Web Scanner Dashboard
+
+```bash
+# Launch the scanner dashboard in your browser (scan-only, no trading)
+grid-scanner
+
+# Custom port
+grid-scanner --port 3000
+
+# Testnet mode
+grid-scanner --testnet
+```
+
+Opens an HTML dashboard at `http://localhost:8080` where you can scan markets and view detailed recommendations with visual grid overlays. No orders are placed.
+
 ### Manual Mode
 
 ```bash
@@ -110,6 +125,9 @@ grid_trading_bot/
   risk.py           - Stop-loss / take-profit evaluation
   bot.py            - Main bot loop
   main.py           - CLI entry point
+  web_scanner.py    - Web scanner dashboard server
+  static/
+    scanner.html    - Scanner dashboard frontend
 tests/
   test_scanner.py
   test_grid.py
